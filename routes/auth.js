@@ -17,7 +17,11 @@ const client = new MongoClient(uri, {
 
 app.use(bodyParser.json());
 
-const auth = client.db("auth").collection("users");
+const database = client.db("sansi");
+
+const auth = database.collection("auth");
+const users = database.collection("users");
+
 const secretKey = process.env.SECRET_KEY;
 
 const verifyJWT = (req, res, next) => {
@@ -40,29 +44,37 @@ const verifyJWT = (req, res, next) => {
 
 router.put("/login", async (req, res) => {
 	try {
-		const data = { email: "sansi@gmail.com", password: "sansi" };
+		const data = req.body;
 		const user = await auth.findOne({ email: data.email });
+		const details = await users.findOne({ email: data?.email });
 
-		if (user) {
+		if (user?.email === "sansi@gmail.com") {
+
 			bcrypt.compare(data.password, user.password, (err, result) => {
 				if (err) {
 					console.error("Error comparing passwords:", err.message);
 					return;
 				}
 				if (result === true) {
-					jwt.sign(user, secretKey, { expiresIn: "1m" }, (err, token) => {
+					jwt.sign(user, secretKey, { expiresIn: "1h" }, (err, token) => {
 						if (err) {
 							console.error("Error creating JWT token:", err.message);
 							res.status(500).json({ error: "Internal Server Error" });
 						} else {
-							return res.status(201).send({ token });
+							return res.status(201).send({ token, user: details });
 						}
 					});
 					console.log("Password matched. User authenticated!");
 				} else {
-					console.log("Password did not match. Access denied.");
+					res
+						.status(500)
+						.json({ message: "Password did not match. Access denied." });
 				}
 			});
+		} else {
+			res
+				.status(500)
+				.json({ message: "Please enter valid admin dashboard email" });
 		}
 	} catch (err) {
 		return res.status(500).send({ message: err.message });
@@ -75,11 +87,18 @@ router.post("/api/register", async (req, res) => {
 		const find = await auth.findOne({ email: user?.email });
 		if (!find) {
 			const hashedPass = await bcrypt.hash(user.password, 8);
-			const registerUser = {
-				...user,
+
+			const createUser = await auth.insertOne({
+				email: user?.email,
 				password: hashedPass,
-			};
-			const createUser = await auth.insertOne(registerUser);
+				createdAt: user?.createdAt,
+			});
+			const userResult = await users.insertOne({
+				name: user?.name,
+				email: user?.email,
+				phone: user?.phone,
+				createdAt: user?.createdAt,
+			});
 			res.status(201).send({
 				data: createUser,
 				message: {
@@ -103,8 +122,7 @@ router.put("/api/login", async (req, res) => {
 	try {
 		const data = req.body;
 		const user = await auth.findOne({ email: data.email });
-		const { password, ...details } = user;
-
+		const details = await users.findOne({ email: data?.email });
 		if (user) {
 			bcrypt.compare(data.password, user.password, (err, result) => {
 				if (err) {
@@ -115,7 +133,7 @@ router.put("/api/login", async (req, res) => {
 					jwt.sign(
 						{ email: user?.email },
 						secretKey,
-						{ expiresIn: "10m" },
+						{ expiresIn: "1h" },
 						(err, token) => {
 							if (err) {
 								console.error("Error creating JWT token:", err.message);
@@ -128,9 +146,9 @@ router.put("/api/login", async (req, res) => {
 					console.log("Password matched. User authenticated!");
 				} else {
 					console.log("Password did not match. Access denied.");
-					return res
-						.status(201)
-						.send({ message: "Password did not match. Access denied." });
+					return res.status(201).send({
+						message: "Password or Email did not match. Access denied.",
+					});
 				}
 			});
 		}
@@ -139,10 +157,11 @@ router.put("/api/login", async (req, res) => {
 	}
 });
 
-router.patch("/api/identify", verifyJWT, async (req, res) => {
+router.get("/getUsers", verifyJWT, async (req, res) => {
 	try {
 		const decoded = req.decoded;
-		res.status(201).send({ access: true, email: decoded?.email });
+		const result = await users.findOne({ email: decoded.email });
+		res.status(201).send(result);
 	} catch (err) {
 		return res.status(500).send({ message: err.message });
 	}
