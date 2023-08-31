@@ -1,8 +1,9 @@
 const express = require("express");
 const router = express.Router();
 require("dotenv").config();
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { format } = require("date-fns");
 
 const uri = `mongodb+srv://${process.env.DB_USER_NAME}:${process.env.DB_PASSWORD}@cluster0.cyu4av7.mongodb.net`;
 const client = new MongoClient(uri, {
@@ -11,7 +12,23 @@ const client = new MongoClient(uri, {
 	serverApi: ServerApiVersion.v1,
 });
 
+const fns_PP = format(new Date(), "PP");
+const fns_P = format(new Date(), "P");
+const fns_pp = format(new Date(), "pp");
+
 const secretKey = process.env.SECRET_KEY;
+const getSecure = async (req, res, next) => {
+	const secure = req.headers.authorization;
+	if (secure) {
+		if (secure.split(" ")[1] === "p2b.business.info@gmail.com") {
+			next();
+		} else {
+			res.status(500).json({ message: "LoL You Can't" });
+		}
+	} else {
+		res.status(500).json({ message: "LoL You Can't" });
+	}
+};
 
 const verifyJWT = (req, res, next) => {
 	const authHeader = req.headers.authorization;
@@ -38,51 +55,33 @@ const users = database.collection("users");
 const products = database.collection("products");
 const categoryLists = database.collection("categoryLists");
 
-router.get("/get/flashSale", async (req, res) => {
-	try {
-		const result = await products.find({ flash: true }).toArray();
-		res.status(201).send(result);
-	} catch (err) {
-		res.status(501).send({ message: err.message });
-	}
-});
+const pending = database.collection("pending");
+const fulfilled = database.collection("fulfilled");
+const rejected = database.collection("rejected");
 
-router.get("/category", async (req, res) => {
-	try {
-		const result = await categoryLists.find({}).toArray();
-		res.status(201).send(result);
-	} catch (err) {
-		res.status(501).send({ message: err.message });
-	}
-});
+const history = database.collection("history");
+const control = database.collection("controller");
 
-router.get("/allProducts", async (req, res) => {
+router.get("/get/popup", async (req, res) => {
 	try {
-		const result = await products.find({}).toArray();
-		const modifiedProducts = result?.map(product => {
-			const { stock, ...productWithoutStock } = product;
-			return productWithoutStock;
+		const result = await control.findOne({
+			_id: new ObjectId("64eb40d172ee117f32c45ecf"),
 		});
-		res.status(201).send(modifiedProducts);
+		res.status(201).send({ popUp: result?.popUpMessage });
 	} catch (err) {
 		res.status(500).send({ message: err.message });
 	}
 });
 
-router.get("/collection/:category", async (req, res) => {
+// control
+router.put("/update/popup", verifyJWT, async (req, res) => {
 	try {
-		const { category } = req.params;
-		const result = await products.find({ category: category }).toArray();
-		res.status(201).send(result);
-	} catch (err) {
-		res.status(500).send({ message: err.message });
-	}
-});
-
-router.get("/specific/:product_Id", async (req, res) => {
-	try {
-		const { product_Id } = req.params;
-		const result = await products.findOne({ product_Id: product_Id });
+		const message = req.body;
+		const result = await control.updateOne(
+			{ _id: new ObjectId("64eb40d172ee117f32c45ecf") },
+			{ $set: { popUpMessage: message } },
+			{ upsert: true },
+		);
 		res.status(201).send(result);
 	} catch (err) {
 		res.status(500).send({ message: err.message });

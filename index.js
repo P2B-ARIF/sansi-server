@@ -6,6 +6,9 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+const controllerUi = require("./routes/dashboard/controller");
+app.use("/control", controllerUi);
+
 const adminDProducts = require("./routes/dashboard/dProducts");
 app.use("/admin", adminDProducts);
 

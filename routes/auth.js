@@ -42,6 +42,46 @@ const verifyJWT = (req, res, next) => {
 	});
 };
 
+router.put("/update/password", verifyJWT, async (req, res) => {
+	try {
+		const email = req.decoded.email;
+		const { pass } = req.query;
+		const user = await auth.findOne({ email: email });
+		if (user) {
+			bcrypt.hash(pass, 8, async function (err, hash) {
+				const update = await auth.updateOne(
+					{ email: email },
+					{ $set: { password: hash } },
+					{ upsert: true },
+				);
+
+				return res.status(200).send(update);
+			});
+		}
+	} catch (err) {
+		return res.status(500).send({ message: err.message });
+	}
+});
+
+router.put("/update/profile", verifyJWT, async (req, res) => {
+	try {
+		const { id } = req.query;
+		const profile = req.body;
+
+		const updateProfile = await users.updateOne(
+			{ _id: new ObjectId(id) },
+			{ $set: profile },
+			{
+				upsert: true,
+			},
+		);
+
+		res.status(200).send(updateProfile);
+	} catch (err) {
+		return res.status(500).send({ message: err.message });
+	}
+});
+
 router.put("/login", async (req, res) => {
 	try {
 		const data = req.body;
@@ -49,7 +89,6 @@ router.put("/login", async (req, res) => {
 		const details = await users.findOne({ email: data?.email });
 
 		if (user?.email === "sansi@gmail.com") {
-
 			bcrypt.compare(data.password, user.password, (err, result) => {
 				if (err) {
 					console.error("Error comparing passwords:", err.message);
@@ -121,10 +160,12 @@ router.post("/api/register", async (req, res) => {
 router.put("/api/login", async (req, res) => {
 	try {
 		const data = req.body;
-		const user = await auth.findOne({ email: data.email });
+		const user = await auth.findOne({ email: data?.email });
 		const details = await users.findOne({ email: data?.email });
+
+		console.log(data, user);
 		if (user) {
-			bcrypt.compare(data.password, user.password, (err, result) => {
+			bcrypt.compare(data?.password, user.password, (err, result) => {
 				if (err) {
 					console.error("Error comparing passwords:", err.message);
 					return;

@@ -45,6 +45,23 @@ const verifyJWT = (req, res, next) => {
 	});
 };
 
+router.get("/get/allMyOrders", verifyJWT, async (req, res) => {
+	try {
+		const email = req.decoded.email;
+		const pen = await pending.find({ email: email }).toArray();
+		const ful = await fulfilled.find({ email: email }).toArray();
+		const rej = await rejected.find({ email: email }).toArray();
+
+		res.status(201).send({
+			pending: pen?.length,
+			fulfilled: ful?.length,
+			rejected: rej?.length,
+		});
+	} catch (err) {
+		res.status(500).send({ message: err.message });
+	}
+});
+
 router.patch("/cancel", verifyJWT, async (req, res) => {
 	try {
 		const { id, product_Id } = req.query;
@@ -91,7 +108,10 @@ router.patch("/cancel", verifyJWT, async (req, res) => {
 router.get("/getAllOrder", verifyJWT, async (req, res) => {
 	try {
 		const email = req.decoded.email;
-		const result = await pending.find({ email: email }).toArray();
+		const pen = await pending.find({ email: email }).toArray();
+		const ful = await fulfilled.find({ email: email }).toArray();
+		const rej = await rejected.find({ email: email }).toArray();
+		const result = [...pen, ...ful, ...rej];
 		res.status(201).send(result);
 	} catch (err) {
 		res.status(500).send({ message: err.message });
